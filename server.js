@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { checkBinaries, detectPlatform, isValidUrl } = require('./src/utils');
 const DownloadQueue = require('./src/queue');
+const ErrorLogger = require('./src/errorLogger');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,8 +23,9 @@ if (!fs.existsSync(defaultDownloadDir)) {
   fs.mkdirSync(defaultDownloadDir, { recursive: true });
 }
 
-// Initialize download queue
+// Initialize download queue and error logger
 const queue = new DownloadQueue();
+const errorLogger = new ErrorLogger();
 
 // API: Check system readiness
 app.get('/api/status', (req, res) => {
@@ -97,6 +99,60 @@ app.get('/api/proxy-thumb', async (req, res) => {
   } catch {
     res.status(500).send('Proxy hatası');
   }
+});
+
+// API: Get error logs
+app.get('/api/errors', (req, res) => {
+  res.json(errorLogger.getAll());
+});
+
+// API: Clear all error logs
+app.delete('/api/errors', (req, res) => {
+  errorLogger.clear();
+  res.json({ success: true });
+});
+
+// API: Delete specific error
+app.delete('/api/errors/:id', (req, res) => {
+  errorLogger.delete(req.params.id);
+  res.json({ success: true });
+});
+
+// API: Update application (git pull)
+app.post('/api/update', (req, res) => {
+  const { exec } = require('child_process');
+  const appDir = path.resolve(__dirname);
+
+  exec('git pull origin master', { cwd: appDir, timeout: 30000 }, (err, stdout, stderr) => {
+    if (err) {
+      return res.status(500).json({
+        success: false,
+        message: `Güncelleme hatası: ${err.message}`,
+        output: stderr,
+      });
+    }
+
+    const hasChanges = !stdout.includes('Already up to date');
+
+    if (hasChanges) {
+      // Auto-install new deps if any
+      exec('npm install --production', { cwd: appDir, timeout: 60000 }, (installErr) => {
+        res.json({
+          success: true,
+          updated: true,
+          message: 'Güncelleme tamamlandı! Uygulamayı yeniden başlatın.',
+          output: stdout,
+        });
+      });
+    } else {
+      res.json({
+        success: true,
+        updated: false,
+        message: 'Uygulama zaten güncel.',
+        output: stdout,
+      });
+    }
+  });
 });
 
 // Socket.IO connection handling
@@ -186,7 +242,18 @@ queue.on('info', (id, dl) => io.emit('download-info', { id, download: dl }));
 queue.on('started', (id, dl) => io.emit('download-started', { id, download: dl }));
 queue.on('progress', (id, dl) => io.emit('download-progress', { id, download: dl }));
 queue.on('complete', (id, dl) => io.emit('download-complete', { id, download: dl }));
-queue.on('error', (id, dl) => io.emit('download-error', { id, download: dl }));
+queue.on('error', (id, dl) => {
+  io.emit('download-error', { id, download: dl });
+  // Auto-log errors
+  errorLogger.log({
+    downloadId: id,
+    url: dl.url,
+    platform: dl.platform,
+    title: dl.title,
+    error: dl.error,
+    phase: dl.status === 'fetching_info' ? 'info' : 'download',
+  });
+});
 queue.on('paused', (id, dl) => io.emit('download-paused', { id, download: dl }));
 queue.on('resumed', (id, dl) => io.emit('download-resumed', { id, download: dl }));
 queue.on('cancelled', (id, dl) => io.emit('download-cancelled', { id, download: dl }));

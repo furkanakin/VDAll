@@ -1,7 +1,7 @@
 node_modules/
 downloads/
 bin/
+dist/
+logs/
 *.log
 .env
-.DS_Store
-Thumbs.db

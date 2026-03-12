@@ -1,21 +1,24 @@
 {
   "name": "video-downloader",
   "version": "1.0.0",
-  "description": "Multi-platform video downloader with modern UI - YouTube, Instagram, Twitter, TikTok",
+  "description": "",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "npm run build:win && npm run build:mac",
+    "build:win": "npx -y pkg server.js --targets node18-win-x64 --output dist/win/VideoDownloader.exe --config package.json",
+    "build:mac": "npx -y pkg server.js --targets node18-macos-x64 --output dist/mac/VideoDownloader --config package.json"
   },
-  "keywords": [
-    "video",
-    "downloader",
-    "youtube",
-    "instagram",
-    "twitter",
-    "tiktok"
-  ],
-  "author": "Furkan",
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      "src/**/*"
+    ],
+    "outputPath": "dist"
+  },
+  "keywords": [],
+  "author": "",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.6",

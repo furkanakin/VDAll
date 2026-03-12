@@ -467,6 +467,32 @@ document.getElementById('settings-modal').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeSettings();
 });
 
+// ===== Update Check =====
+async function checkUpdate() {
+  const btn = document.getElementById('btn-update');
+  btn.style.animation = 'spin 1s linear infinite';
+  showToast('info', 'Güncelleme kontrol ediliyor...');
+
+  try {
+    const res = await fetch('/api/update', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success && data.updated) {
+      showToast('success', data.message);
+      // Reload page after 2 seconds
+      setTimeout(() => window.location.reload(), 2000);
+    } else if (data.success) {
+      showToast('info', data.message);
+    } else {
+      showToast('error', data.message || 'Güncelleme başarısız');
+    }
+  } catch (err) {
+    showToast('error', 'Güncelleme kontrol edilemedi: ' + err.message);
+  } finally {
+    btn.style.animation = '';
+  }
+}
+
 // ===== Open Downloads Folder =====
 function openDownloadsFolder() {
   fetch('/api/open-folder', {

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hata Kayıtları — Video Downloader</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .error-log-page { max-width: 960px; margin: 0 auto; padding: 20px; }
+    .error-log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .error-log-header h2 { font-size: 1.3rem; font-weight: 700; }
+    .error-log-actions { display: flex; gap: 8px; }
+    .error-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+    .error-row {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      transition: all var(--transition-fast);
+    }
+    .error-row:hover { border-color: var(--border-hover); }
+    .error-row td { padding: 12px 16px; vertical-align: top; }
+    .error-row td:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
+    .error-row td:last-child { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+    .error-time { color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; min-width: 140px; }
+    .error-platform { min-width: 80px; }
+    .error-message {
+      color: var(--error);
+      font-size: 0.8rem;
+      word-break: break-word;
+      max-width: 500px;
+    }
+    .error-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 2px; }
+    .error-url { color: var(--text-muted); font-size: 0.7rem; word-break: break-all; }
+    .error-phase {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--error);
+      display: inline-block;
+    }
+    .empty-errors {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-muted);
+    }
+    .empty-errors svg { opacity: 0.2; margin-bottom: 16px; }
+    .back-link {
+      color: var(--text-accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s;
+    }
+    .back-link:hover { opacity: 0.8; }
+    .error-count {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--error);
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .error-delete-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+    .error-delete-btn:hover { color: var(--error); }
+  </style>
+</head>
+<body>
+  <div class="app error-log-page">
+    <div class="error-log-header">
+      <div>
+        <a href="/" class="back-link">← Ana Sayfa</a>
+        <h2 style="margin-top: 8px;">📋 Hata Kayıtları <span id="error-count" class="error-count">0</span></h2>
+      </div>
+      <div class="error-log-actions">
+        <button class="btn btn-secondary" onclick="refreshErrors()">🔄 Yenile</button>
+        <button class="btn btn-danger btn-sm" onclick="clearAllErrors()">🗑 Tümünü Sil</button>
+      </div>
+    </div>
+
+    <div id="error-list"></div>
+  </div>
+
+  <script>
+    async function loadErrors() {
+      try {
+        const res = await fetch('/api/errors');
+        const errors = await res.json();
+        renderErrors(errors);
+      } catch {
+        document.getElementById('error-list').innerHTML = '<div class="empty-errors">Hata kayıtları yüklenemedi.</div>';
+      }
+    }
+
+    function renderErrors(errors) {
+      const container = document.getElementById('error-list');
+      document.getElementById('error-count').textContent = errors.length;
+
+      if (errors.length === 0) {
+        container.innerHTML = `
+          <div class="empty-errors">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 15s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            <p>Henüz hata kaydı yok</p>
+            <small>Her şey yolunda görünüyor! 🎉</small>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<table class="error-table"><tbody>';
+      for (const err of errors) {
+        const date = new Date(err.timestamp);
+        const timeStr = date.toLocaleDateString('tr-TR') + ' ' + date.toLocaleTimeString('tr-TR');
+        const phaseLabels = { info: 'Bilgi Alma', download: 'İndirme', merge: 'Birleştirme', unknown: 'Bilinmeyen' };
+
+        html += `
+          <tr class="error-row">
+            <td class="error-time">${timeStr}</td>
+            <td class="error-platform">
+              <span class="platform-badge ${err.platform}">${err.platform}</span>
+              <br><span class="error-phase">${phaseLabels[err.phase] || err.phase}</span>
+            </td>
+            <td>
+              <div class="error-title">${escapeHtml(err.title || 'Bilinmeyen Video')}</div>
+              <div class="error-url">${escapeHtml(err.url)}</div>
+            </td>
+            <td class="error-message">${escapeHtml(err.error)}</td>
+            <td><button class="error-delete-btn" onclick="deleteError('${err.id}')" title="Sil">✕</button></td>
+          </tr>
+        `;
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function refreshErrors() { loadErrors(); }
+
+    async function clearAllErrors() {
+      if (!confirm('Tüm hata kayıtlarını silmek istediğinize emin misiniz?')) return;
+      await fetch('/api/errors', { method: 'DELETE' });
+      loadErrors();
+    }
+
+    async function deleteError(id) {
+      await fetch(`/api/errors/${id}`, { method: 'DELETE' });
+      loadErrors();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    loadErrors();
+  </script>
+</body>
+</html>
