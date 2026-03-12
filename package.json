@@ -13,7 +13,8 @@
   "pkg": {
     "assets": [
       "public/**/*",
-      "src/**/*"
+      "src/**/*",
+      "node_modules/socket.io/client-dist/**/*"
     ],
     "outputPath": "dist"
   },
