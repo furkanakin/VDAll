@@ -288,27 +288,43 @@ app.get('/api/setup-status', (req, res) => {
 
 // Start server
 async function startApp() {
-  // Phase 1: Start server immediately so the UI is accessible
-  await new Promise((resolve) => {
-    server.listen(PORT, () => {
-      console.log('');
-      console.log('╔══════════════════════════════════════════════════╗');
-      console.log('║          🎬 Video Downloader Başlatılıyor       ║');
-      console.log(`║  🌐  http://localhost:${PORT}                     ║`);
-      console.log('╚══════════════════════════════════════════════════╝');
-      console.log('');
+  // Phase 1: Start server - try multiple ports if occupied
+  let actualPort = PORT;
+  await new Promise((resolve, reject) => {
+    function tryPort(port) {
+      if (port > PORT + 10) {
+        return reject(new Error(`Port ${PORT}-${PORT + 10} arası tümü kullanımda. Lütfen diğer uygulamaları kapatın.`));
+      }
+      server.listen(port, () => {
+        actualPort = port;
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════╗');
+        console.log('║          🎬 Video Downloader Başlatılıyor       ║');
+        console.log(`║  🌐  http://localhost:${actualPort}                     ║`);
+        console.log('╚══════════════════════════════════════════════════╝');
+        console.log('');
 
-      // Auto-open browser
-      const { exec } = require('child_process');
-      const url = `http://localhost:${PORT}`;
-      const cmd = process.platform === 'win32'
-        ? `start ${url}`
-        : process.platform === 'darwin'
-          ? `open ${url}`
-          : `xdg-open ${url}`;
-      exec(cmd);
-      resolve();
-    });
+        // Auto-open browser
+        const { exec } = require('child_process');
+        const url = `http://localhost:${actualPort}`;
+        const cmd = process.platform === 'win32'
+          ? `start ${url}`
+          : process.platform === 'darwin'
+            ? `open ${url}`
+            : `xdg-open ${url}`;
+        exec(cmd);
+        resolve();
+      }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          console.log(`Port ${port} kullanımda, ${port + 1} deneniyor...`);
+          server.close();
+          tryPort(port + 1);
+        } else {
+          reject(err);
+        }
+      });
+    }
+    tryPort(PORT);
   });
 
   // Phase 2: Auto-setup binaries
