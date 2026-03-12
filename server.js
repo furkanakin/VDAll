@@ -1,3 +1,15 @@
+// ===== Global crash guard (keeps console open on errors) =====
+const readline = require('readline');
+function keepAlive(err) {
+  console.error('\n\n=== HATA OLUSTU ===');
+  console.error(err);
+  console.error('\nKapatmak için Enter tuşuna basın...');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  rl.question('', () => { rl.close(); process.exit(1); });
+}
+process.on('uncaughtException', keepAlive);
+process.on('unhandledRejection', keepAlive);
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -335,7 +347,4 @@ async function startApp() {
   console.log('');
 }
 
-startApp().catch(err => {
-  console.error('Uygulama başlatılamadı:', err);
-  process.exit(1);
-});
+startApp().catch(keepAlive);

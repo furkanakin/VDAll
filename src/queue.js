@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const EventEmitter = require('events');
 const Downloader = require('./downloader');
 
@@ -53,7 +53,7 @@ class DownloadQueue extends EventEmitter {
    * Add a URL to the download queue
    */
   async addDownload(url, options = {}) {
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     const download = {
       id,
       url,
