@@ -154,6 +154,15 @@ urlInput.addEventListener('keydown', (e) => {
   }
 });
 
+// ===== Thumbnail Proxy =====
+function proxyThumb(url) {
+  if (!url) return '';
+  // YouTube thumbnails work fine without proxy
+  if (url.includes('i.ytimg.com') || url.includes('youtube.com')) return url;
+  // Proxy everything else through our server to bypass CORS
+  return `/api/proxy-thumb?url=${encodeURIComponent(url)}`;
+}
+
 // ===== Render Download Card =====
 function renderDownloadCard(dl) {
   const card = document.createElement('div');
@@ -166,8 +175,9 @@ function renderDownloadCard(dl) {
     : dl.status === 'paused' ? 'paused'
     : '';
 
-  const thumbHtml = dl.thumbnail
-    ? `<img src="${dl.thumbnail}" alt="Thumbnail" onerror="this.parentElement.innerHTML='<span class=\\'thumb-placeholder\\'>${platformIcons[dl.platform] || '🎬'}</span>'">`
+  const thumbUrl = proxyThumb(dl.thumbnail);
+  const thumbHtml = thumbUrl
+    ? `<img src="${thumbUrl}" alt="Thumbnail" onerror="this.parentElement.innerHTML='<span class=\\'thumb-placeholder\\'>${platformIcons[dl.platform] || '🎬'}</span>'">`
     : `<span class="thumb-placeholder">${platformIcons[dl.platform] || '🎬'}</span>`;
 
   card.innerHTML = `

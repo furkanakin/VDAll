@@ -77,6 +77,28 @@ app.post('/api/open-folder', (req, res) => {
   }
 });
 
+// API: Proxy thumbnails to avoid CORS issues
+app.get('/api/proxy-thumb', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send('URL gerekli');
+
+  try {
+    const https = require('https');
+    const http_mod = require('http');
+    const mod = url.startsWith('https') ? https : http_mod;
+
+    mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (proxyRes) => {
+      res.set('Content-Type', proxyRes.headers['content-type'] || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      proxyRes.pipe(res);
+    }).on('error', () => {
+      res.status(502).send('Thumbnail yüklenemedi');
+    });
+  } catch {
+    res.status(500).send('Proxy hatası');
+  }
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('İstemci bağlandı:', socket.id);

@@ -16,11 +16,14 @@ class Downloader extends EventEmitter {
    */
   async getVideoInfo(url) {
     return new Promise((resolve, reject) => {
+      const platform = detectPlatform(url);
       const args = [
         '--dump-json',
         '--no-download',
         '--no-warnings',
+        '--no-check-certificates',
         '--ffmpeg-location', path.dirname(this.bins.ffmpeg),
+        ...this._getPlatformArgs(platform),
         url,
       ];
 
@@ -118,15 +121,19 @@ class Downloader extends EventEmitter {
       ? 'bestvideo+bestaudio/best'
       : `${formatId}+bestaudio/best`;
 
+    const platform = detectPlatform(url);
+
     const args = [
       '-f', formatArg,
       '--merge-output-format', 'mp4',
       '--concurrent-fragments', String(fragments),
       '--newline',
       '--no-warnings',
+      '--no-check-certificates',
       '--ffmpeg-location', path.dirname(this.bins.ffmpeg),
       '-o', outputTemplate,
       '--no-part',
+      ...this._getPlatformArgs(platform),
       url,
     ];
 
@@ -252,6 +259,27 @@ class Downloader extends EventEmitter {
       return true;
     }
     return false;
+  }
+  /**
+   * Get platform-specific yt-dlp arguments
+   */
+  _getPlatformArgs(platform) {
+    const args = [];
+    if (platform === 'tiktok') {
+      args.push(
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '--extractor-args', 'tiktok:api_hostname=api22-normal-c-useast2a.tiktokv.com',
+      );
+    } else if (platform === 'instagram') {
+      args.push(
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      );
+    } else if (platform === 'twitter') {
+      args.push(
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      );
+    }
+    return args;
   }
 }
 
