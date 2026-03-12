@@ -158,6 +158,11 @@ io.on('connection', (socket) => {
     queue.removeDownload(id);
   });
 
+  // Retry a failed download
+  socket.on('retry', (id) => {
+    queue.retryDownload(id);
+  });
+
   // Update format
   socket.on('update-format', (data) => {
     queue.updateFormat(data.id, data.formatId);

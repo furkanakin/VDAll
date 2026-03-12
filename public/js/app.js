@@ -320,10 +320,12 @@ function renderActions(dl) {
     case 'error':
       return `
         <span style="font-size:0.75rem; color: var(--error); max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dl.error || '')}">${escapeHtml(dl.error || 'Bilinmeyen hata')}</span>
+        <button class="btn btn-sm btn-warning" onclick="retryDownload('${dl.id}')">🔄 Tekrar Dene</button>
         <button class="btn btn-sm btn-secondary" onclick="removeDownload('${dl.id}')">✕ Kaldır</button>
       `;
     case 'cancelled':
       return `
+        <button class="btn btn-sm btn-warning" onclick="retryDownload('${dl.id}')">🔄 Tekrar Dene</button>
         <button class="btn btn-sm btn-secondary" onclick="removeDownload('${dl.id}')">✕ Kaldır</button>
       `;
     default:
@@ -385,6 +387,11 @@ function removeDownload(id) {
   removeDownloadCardFromDOM(id);
   state.downloads.delete(id);
   updateStats();
+}
+
+function retryDownload(id) {
+  socket.emit('retry', id);
+  showToast('info', 'Tekrar deneniyor...');
 }
 
 function updateFormat(id, formatId) {

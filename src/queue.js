@@ -222,6 +222,42 @@ class DownloadQueue extends EventEmitter {
     this.maxConcurrent = n;
     this._processQueue();
   }
+
+  /**
+   * Retry a failed download
+   */
+  async retryDownload(id) {
+    const dl = this.downloads.get(id);
+    if (!dl || (dl.status !== 'error' && dl.status !== 'cancelled')) return false;
+
+    // Reset state
+    dl.status = 'fetching_info';
+    dl.error = null;
+    dl.progress = 0;
+    dl.speed = '-';
+    dl.eta = '-';
+    dl.title = 'Tekrar deneniyor...';
+    this.emit('info', id, dl);
+
+    try {
+      const info = await this.downloader.getVideoInfo(dl.url);
+      dl.title = info.title;
+      dl.thumbnail = info.thumbnail;
+      dl.platform = info.platform;
+      dl.formats = info.formats;
+      dl.uploader = info.uploader;
+      dl.duration = info.duration;
+      dl.status = 'waiting';
+      this.emit('info', id, dl);
+      this._processQueue();
+    } catch (err) {
+      dl.status = 'error';
+      dl.error = err.message;
+      this.emit('error', id, dl);
+    }
+
+    return true;
+  }
 }
 
 module.exports = DownloadQueue;

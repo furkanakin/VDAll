@@ -12,18 +12,38 @@ class Downloader extends EventEmitter {
   }
 
   /**
-   * Get video info and available formats
+   * Get video info and available formats (with retry for TikTok)
    */
-  async getVideoInfo(url) {
+  async getVideoInfo(url, retryCount = 0) {
+    const MAX_RETRIES = 3;
+    const platform = detectPlatform(url);
+
+    try {
+      return await this._fetchVideoInfo(url, platform, retryCount);
+    } catch (err) {
+      if (retryCount < MAX_RETRIES && platform === 'tiktok') {
+        const delay = (retryCount + 1) * 2000; // 2s, 4s, 6s
+        console.log(`[TikTok] Deneme ${retryCount + 1} başarısız, ${delay/1000}s sonra tekrar denenecek...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.getVideoInfo(url, retryCount + 1);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Internal: fetch video info from yt-dlp
+   */
+  _fetchVideoInfo(url, platform, attempt = 0) {
     return new Promise((resolve, reject) => {
-      const platform = detectPlatform(url);
       const args = [
         '--dump-json',
         '--no-download',
         '--no-warnings',
         '--no-check-certificates',
+        '--socket-timeout', '15',
         '--ffmpeg-location', path.dirname(this.bins.ffmpeg),
-        ...this._getPlatformArgs(platform),
+        ...this._getPlatformArgs(platform, attempt),
         url,
       ];
 
@@ -263,21 +283,27 @@ class Downloader extends EventEmitter {
   /**
    * Get platform-specific yt-dlp arguments
    */
-  _getPlatformArgs(platform) {
+  _getPlatformArgs(platform, attempt = 0) {
     const args = [];
+    const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
     if (platform === 'tiktok') {
+      // Cycle through different API hostnames on retry
+      const tiktokHosts = [
+        'api22-normal-c-useast2a.tiktokv.com',
+        'api16-normal-c-useast1a.tiktokv.com',
+        'api19-normal-c-useast1a.tiktokv.com',
+        'api22-normal-c-useast1a.tiktokv.com',
+      ];
+      const host = tiktokHosts[attempt % tiktokHosts.length];
       args.push(
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        '--extractor-args', 'tiktok:api_hostname=api22-normal-c-useast2a.tiktokv.com',
+        '--user-agent', ua,
+        '--extractor-args', `tiktok:api_hostname=${host}`,
       );
     } else if (platform === 'instagram') {
-      args.push(
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      );
+      args.push('--user-agent', ua);
     } else if (platform === 'twitter') {
-      args.push(
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      );
+      args.push('--user-agent', ua);
     }
     return args;
   }
