@@ -1,0 +1,26 @@
+{
+  "name": "video-downloader",
+  "version": "1.0.0",
+  "description": "Multi-platform video downloader with modern UI - YouTube, Instagram, Twitter, TikTok",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "video",
+    "downloader",
+    "youtube",
+    "instagram",
+    "twitter",
+    "tiktok"
+  ],
+  "author": "Furkan",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3",
+    "uuid": "^13.0.0"
+  }
+}
