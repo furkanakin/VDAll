@@ -395,6 +395,36 @@ textarea:focus {
   border: 1px solid rgba(136, 136, 168, 0.2);
 }
 
+/* Platform badge toggle states */
+.platform-badge {
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.platform-badge:hover {
+  transform: scale(1.05);
+  filter: brightness(1.2);
+}
+
+.platform-badge.disabled {
+  opacity: 0.4;
+  text-decoration: line-through;
+  border-style: dashed;
+  filter: grayscale(0.6);
+}
+
+.platform-badge.disabled:hover {
+  opacity: 0.7;
+  filter: grayscale(0.3);
+}
+
+.platform-badge small {
+  font-size: 0.55rem;
+  font-weight: 700;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
 .input-actions {
   display: flex;
   align-items: center;

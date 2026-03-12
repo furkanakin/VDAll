@@ -90,31 +90,87 @@ function showToast(type, message) {
   }, 4000);
 }
 
+// ===== Smart URL Extraction =====
+function extractUrls(text) {
+  // Extract all URLs from messy text using regex
+  const urlRegex = /https?:\/\/[^\s,\)\]}"'<>]+/gi;
+  const matches = text.match(urlRegex) || [];
+
+  // Clean up URLs (remove trailing punctuation)
+  const cleaned = matches.map(url => {
+    return url.replace(/[.,;:!?\-]+$/, '').trim();
+  });
+
+  // Deduplicate
+  return [...new Set(cleaned)];
+}
+
+// ===== Platform Toggle State =====
+const disabledPlatforms = new Set();
+
 // ===== URL Input Platform Detection =====
 const urlInput = document.getElementById('url-input');
 const detectedPlatforms = document.getElementById('detected-platforms');
 
+// Auto-extract URLs on paste
+urlInput.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+  const urls = extractUrls(pastedText);
+
+  if (urls.length > 0) {
+    // If textarea already has content, append
+    const existing = urlInput.value.trim();
+    const existingUrls = existing ? existing.split('\n').filter(l => l.trim()) : [];
+    const allUrls = [...new Set([...existingUrls, ...urls])];
+    urlInput.value = allUrls.join('\n');
+    showToast('success', `${urls.length} link otomatik olarak ayıklandı`);
+  } else {
+    // If no URLs found, paste as-is
+    urlInput.value += pastedText;
+  }
+
+  // Trigger platform detection
+  updatePlatformBadges();
+});
+
 urlInput.addEventListener('input', () => {
-  const lines = urlInput.value.split('\n').filter(l => l.trim());
+  updatePlatformBadges();
+});
+
+function updatePlatformBadges() {
+  // Extract all URLs from the entire textarea content (handles URLs mixed with text)
+  const allUrls = extractUrls(urlInput.value);
   const counts = {};
 
-  for (const line of lines) {
-    const platform = detectPlatform(line.trim());
+  for (const url of allUrls) {
+    const platform = detectPlatform(url);
     counts[platform] = (counts[platform] || 0) + 1;
   }
 
   detectedPlatforms.innerHTML = '';
   for (const [platform, count] of Object.entries(counts)) {
-    if (platform === 'unknown' && !lines.some(l => {
-      try { new URL(l.trim()); return true; } catch { return false; }
-    })) continue;
-
+    const isDisabled = disabledPlatforms.has(platform);
     const badge = document.createElement('span');
-    badge.className = `platform-badge ${platform}`;
-    badge.textContent = `${platformIcons[platform]} ${platformNames[platform]} × ${count}`;
+    badge.className = `platform-badge ${platform}${isDisabled ? ' disabled' : ''}`;
+    badge.innerHTML = `${platformIcons[platform]} ${platformNames[platform]} × ${count} ${isDisabled ? '<small>✕ PASİF</small>' : '<small>✓ AKTİF</small>'}`;
+    badge.title = isDisabled
+      ? `${platformNames[platform]} linkleri indirilmeyecek — tıklayarak aktif edin`
+      : `${platformNames[platform]} linkleri indirilecek — tıklayarak pasif yapın`;
+    badge.style.cursor = 'pointer';
+    badge.addEventListener('click', () => {
+      if (disabledPlatforms.has(platform)) {
+        disabledPlatforms.delete(platform);
+        showToast('success', `${platformNames[platform]} linkleri tekrar aktif edildi`);
+      } else {
+        disabledPlatforms.add(platform);
+        showToast('warning', `${platformNames[platform]} linkleri pasif yapıldı — indirilmeyecek`);
+      }
+      updatePlatformBadges();
+    });
     detectedPlatforms.appendChild(badge);
   }
-});
+}
 
 // ===== Start Downloads =====
 function startDownloads() {
@@ -124,12 +180,23 @@ function startDownloads() {
     return;
   }
 
-  const urls = text.split('\n')
-    .map(l => l.trim())
-    .filter(l => l && l.startsWith('http'));
+  // Extract all URLs from text (handles messy mixed content)
+  const allUrls = extractUrls(text);
+
+  // Filter out disabled platforms
+  const urls = allUrls.filter(url => {
+    const platform = detectPlatform(url);
+    return !disabledPlatforms.has(platform);
+  });
+
+  const skipped = allUrls.length - urls.length;
 
   if (urls.length === 0) {
-    showToast('warning', 'Geçerli URL bulunamadı. Linklerin http:// veya https:// ile başladığından emin olun.');
+    if (skipped > 0) {
+      showToast('warning', `Tüm linkler pasif platformlara ait. Aktif hale getirmek için platform etiketlerine tıklayın.`);
+    } else {
+      showToast('warning', 'Geçerli URL bulunamadı. Linkleri yapıştırmayı deneyin, otomatik ayıklanacak.');
+    }
     return;
   }
 
@@ -144,7 +211,11 @@ function startDownloads() {
 
   urlInput.value = '';
   detectedPlatforms.innerHTML = '';
-  showToast('info', `${urls.length} video indirme kuyruğuna eklendi`);
+  disabledPlatforms.clear();
+
+  let msg = `${urls.length} video indirme kuyruğuna eklendi`;
+  if (skipped > 0) msg += ` (${skipped} pasif platform linki atlandı)`;
+  showToast('info', msg);
 }
 
 // Allow Ctrl+Enter to start downloads
