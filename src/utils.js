@@ -22,9 +22,16 @@ function detectPlatform(url) {
 
 /**
  * Get bundled binary paths based on OS
+ * Supports both normal Node.js and pkg-packaged execution
  */
 function getBinaryPaths() {
-  const baseDir = path.join(__dirname, '..', 'bin');
+  // When running as a pkg binary, process.pkg exists
+  // External files (binaries) should be next to the executable
+  const isPkg = typeof process.pkg !== 'undefined';
+  const baseDir = isPkg
+    ? path.join(path.dirname(process.execPath), 'bin')
+    : path.join(__dirname, '..', 'bin');
+
   const platform = os.platform();
 
   if (platform === 'win32') {

@@ -3,7 +3,10 @@ const path = require('path');
 
 class ErrorLogger {
   constructor() {
-    this.logDir = path.join(__dirname, '..', 'logs');
+    // Use real filesystem path (not pkg snapshot)
+    const isPkg = typeof process.pkg !== 'undefined';
+    const appRoot = isPkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+    this.logDir = path.join(appRoot, 'logs');
     this.logFile = path.join(this.logDir, 'errors.json');
     this._ensureLogDir();
     this.errors = this._loadErrors();

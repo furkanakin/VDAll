@@ -13,12 +13,17 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
+// Detect pkg mode
+const isPkg = typeof process.pkg !== 'undefined';
+const appRoot = isPkg ? path.dirname(process.execPath) : __dirname;
+
 // Middleware
 app.use(express.json());
+// In pkg, public/ is inside the snapshot (accessible via __dirname)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Create downloads directory
-const defaultDownloadDir = path.join(__dirname, 'downloads');
+// Create downloads directory (always on real filesystem)
+const defaultDownloadDir = path.join(appRoot, 'downloads');
 if (!fs.existsSync(defaultDownloadDir)) {
   fs.mkdirSync(defaultDownloadDir, { recursive: true });
 }
