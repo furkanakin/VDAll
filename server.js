@@ -177,11 +177,12 @@ app.post('/api/update', (req, res) => {
 io.on('connection', (socket) => {
   console.log('İstemci bağlandı:', socket.id);
 
-  // Send current downloads state
+  // Send current state to new client
   socket.emit('init', {
     downloads: queue.getAllDownloads(),
     defaultDownloadDir,
   });
+  socket.emit('setup-status', setupStatus);
 
   // Add download(s)
   socket.on('add-downloads', async (data) => {
