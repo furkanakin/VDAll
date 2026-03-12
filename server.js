@@ -6,6 +6,7 @@ const fs = require('fs');
 const { checkBinaries, detectPlatform, isValidUrl } = require('./src/utils');
 const DownloadQueue = require('./src/queue');
 const ErrorLogger = require('./src/errorLogger');
+const AutoSetup = require('./src/autoSetup');
 
 const app = express();
 const server = http.createServer(app);
@@ -265,26 +266,76 @@ queue.on('cancelled', (id, dl) => io.emit('download-cancelled', { id, download: 
 queue.on('removed', (id) => io.emit('download-removed', { id }));
 queue.on('updated', (id, dl) => io.emit('download-updated', { id, download: dl }));
 
+// Setup status tracking
+let setupStatus = { phase: 'starting', message: 'Başlatılıyor...', ready: false };
+
+// API: Setup status (for loading screen)
+app.get('/api/setup-status', (req, res) => {
+  res.json(setupStatus);
+});
+
 // Start server
-server.listen(PORT, () => {
+async function startApp() {
+  // Phase 1: Start server immediately so the UI is accessible
+  await new Promise((resolve) => {
+    server.listen(PORT, () => {
+      console.log('');
+      console.log('╔══════════════════════════════════════════════════╗');
+      console.log('║          🎬 Video Downloader Başlatılıyor       ║');
+      console.log(`║  🌐  http://localhost:${PORT}                     ║`);
+      console.log('╚══════════════════════════════════════════════════╝');
+      console.log('');
+
+      // Auto-open browser
+      const { exec } = require('child_process');
+      const url = `http://localhost:${PORT}`;
+      const cmd = process.platform === 'win32'
+        ? `start ${url}`
+        : process.platform === 'darwin'
+          ? `open ${url}`
+          : `xdg-open ${url}`;
+      exec(cmd);
+      resolve();
+    });
+  });
+
+  // Phase 2: Auto-setup binaries
+  const autoSetup = new AutoSetup(appRoot);
+  setupStatus = { phase: 'checking', message: 'Gerekli dosyalar kontrol ediliyor...', ready: false };
+  io.emit('setup-status', setupStatus);
+
+  try {
+    const result = await autoSetup.ensureBinaries((msg) => {
+      setupStatus = { phase: 'downloading', message: msg, ready: false };
+      io.emit('setup-status', setupStatus);
+    });
+
+    if (result.needed) {
+      const allOk = result.results.every(r => r.success);
+      if (!allOk) {
+        const failed = result.results.filter(r => !r.success).map(r => `${r.name}: ${r.error}`);
+        console.error('[AutoSetup] Bazı bileşenler indirilemedi:', failed.join(', '));
+      }
+    }
+  } catch (err) {
+    console.error('[AutoSetup] Kurulum hatası:', err.message);
+  }
+
+  // Phase 3: Ready
   const bins = checkBinaries();
-  console.log('');
+  setupStatus = { phase: 'ready', message: 'Hazır!', ready: true };
+  io.emit('setup-status', setupStatus);
+
   console.log('╔══════════════════════════════════════════════════╗');
-  console.log('║          🎬 Video Downloader Başlatıldı         ║');
+  console.log('║          🎬 Video Downloader Hazır!              ║');
   console.log('╠══════════════════════════════════════════════════╣');
-  console.log(`║  🌐  http://localhost:${PORT}                     ║`);
   console.log(`║  📁  İndirme klasörü: downloads/                ║`);
   console.log(`║  🔧  yt-dlp: ${bins.ytdlp ? '✅' : '❌'}  ffmpeg: ${bins.ffmpeg ? '✅' : '❌'}               ║`);
   console.log('╚══════════════════════════════════════════════════╝');
   console.log('');
+}
 
-  // Auto-open browser
-  const { exec } = require('child_process');
-  const url = `http://localhost:${PORT}`;
-  const cmd = process.platform === 'win32'
-    ? `start ${url}`
-    : process.platform === 'darwin'
-      ? `open ${url}`
-      : `xdg-open ${url}`;
-  exec(cmd);
+startApp().catch(err => {
+  console.error('Uygulama başlatılamadı:', err);
+  process.exit(1);
 });

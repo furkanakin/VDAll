@@ -12,6 +12,22 @@
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
+  <!-- Setup Loading Overlay -->
+  <div id="setup-overlay" style="position:fixed;inset:0;z-index:99999;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;transition:opacity 0.5s;">
+    <div class="logo-icon" style="width:80px;height:80px;">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="animation:spin 2s linear infinite;">
+        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2 style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">Video Downloader</h2>
+    <p id="setup-message" style="color:var(--text-secondary);font-size:0.9rem;">Başlatılıyor...</p>
+    <div style="width:240px;height:4px;background:var(--bg-card);border-radius:4px;overflow:hidden;">
+      <div id="setup-bar" style="width:10%;height:100%;background:var(--primary);border-radius:4px;transition:width 0.5s;"></div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div id="toast-container"></div>
 

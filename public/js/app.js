@@ -4,6 +4,38 @@
 
 const socket = io();
 
+// ===== Setup Overlay =====
+(function setupOverlay() {
+  const overlay = document.getElementById('setup-overlay');
+  const msg = document.getElementById('setup-message');
+  const bar = document.getElementById('setup-bar');
+  if (!overlay) return;
+
+  function hideOverlay() {
+    overlay.style.opacity = '0';
+    setTimeout(() => { overlay.style.display = 'none'; }, 500);
+  }
+
+  // Listen for real-time setup updates
+  socket.on('setup-status', (data) => {
+    if (data.ready) {
+      bar.style.width = '100%';
+      msg.textContent = 'Hazır!';
+      setTimeout(hideOverlay, 400);
+    } else {
+      msg.textContent = data.message;
+      if (data.phase === 'checking') bar.style.width = '20%';
+      else if (data.phase === 'downloading') bar.style.width = '60%';
+    }
+  });
+
+  // Also check via API on load (in case setup already finished)
+  fetch('/api/setup-status').then(r => r.json()).then(data => {
+    if (data.ready) hideOverlay();
+    else msg.textContent = data.message;
+  }).catch(() => { /* ignore */ });
+})();
+
 // State
 const state = {
   downloads: new Map(),
