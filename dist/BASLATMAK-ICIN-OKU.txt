@@ -1,0 +1,15 @@
+╔══════════════════════════════════════════════════╗
+║     🎬 Video Downloader - macOS Kurulum          ║
+╚══════════════════════════════════════════════════╝
+
+Terminal'i açın ve aşağıdaki komutu yapıştırın:
+
+  cd ~/Downloads/VDAll-master && bash install-mac.sh
+
+Bu komut:
+  ✅ Dosya izinlerini ayarlar
+  ✅ macOS Gatekeeper kilidini kaldırır
+  ✅ Uygulamayı başlatır
+
+Kurulumdan sonra VideoDownloader.command dosyasına
+çift tıklayarak uygulamayı başlatabilirsiniz.
