@@ -2,6 +2,14 @@
 //  Video Downloader - Frontend Application
 // =============================================
 
+// Guard: if socket.io client failed to load, show error and auto-reload
+if (typeof io === 'undefined') {
+  const msg = document.getElementById('setup-message');
+  if (msg) msg.textContent = 'Bağlantı kurulamadı, yeniden deneniyor...';
+  setTimeout(() => window.location.reload(), 3000);
+  throw new Error('Socket.IO yüklenemedi — sayfa yeniden yüklenecek');
+}
+
 const socket = io();
 
 // ===== Setup Overlay =====

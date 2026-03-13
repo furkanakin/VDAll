@@ -21,8 +21,10 @@ const ErrorLogger = require('./src/errorLogger');
 const AutoSetup = require('./src/autoSetup');
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+
+// io will be set after server successfully binds to a port
+let io = null;
+let server = null;
 
 const PORT = process.env.PORT || 3000;
 
@@ -173,111 +175,113 @@ app.post('/api/update', (req, res) => {
   });
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('İstemci bağlandı:', socket.id);
+// Setup Socket.IO connection handling (called after io is initialized)
+function setupSocketIO() {
+  io.on('connection', (socket) => {
+    console.log('İstemci bağlandı:', socket.id);
 
-  // Send current state to new client
-  socket.emit('init', {
-    downloads: queue.getAllDownloads(),
-    defaultDownloadDir,
-  });
-  socket.emit('setup-status', setupStatus);
+    // Send current state to new client
+    socket.emit('init', {
+      downloads: queue.getAllDownloads(),
+      defaultDownloadDir,
+    });
+    socket.emit('setup-status', setupStatus);
 
-  // Add download(s)
-  socket.on('add-downloads', async (data) => {
-    const { urls, outputDir, fragments = 8, formatId = 'best' } = data;
+    // Add download(s)
+    socket.on('add-downloads', async (data) => {
+      const { urls, outputDir, fragments = 8, formatId = 'best' } = data;
 
-    for (const url of urls) {
-      if (!isValidUrl(url.trim())) {
-        socket.emit('toast', {
-          type: 'error',
-          message: `Geçersiz URL atlandı: ${url.substring(0, 50)}...`,
-        });
-        continue;
+      for (const url of urls) {
+        if (!isValidUrl(url.trim())) {
+          socket.emit('toast', {
+            type: 'error',
+            message: `Geçersiz URL atlandı: ${url.substring(0, 50)}...`,
+          });
+          continue;
+        }
+
+        try {
+          const id = await queue.addDownload(url.trim(), {
+            platform: detectPlatform(url.trim()),
+            outputDir: outputDir || defaultDownloadDir,
+            fragments,
+            formatId,
+          });
+        } catch (err) {
+          socket.emit('toast', {
+            type: 'error',
+            message: `Hata: ${err.message}`,
+          });
+        }
       }
+    });
 
-      try {
-        const id = await queue.addDownload(url.trim(), {
-          platform: detectPlatform(url.trim()),
-          outputDir: outputDir || defaultDownloadDir,
-          fragments,
-          formatId,
-        });
-      } catch (err) {
-        socket.emit('toast', {
-          type: 'error',
-          message: `Hata: ${err.message}`,
-        });
+    // Pause download
+    socket.on('pause', (id) => {
+      queue.pauseDownload(id);
+    });
+
+    // Resume download
+    socket.on('resume', (id) => {
+      queue.resumeDownload(id);
+    });
+
+    // Cancel download
+    socket.on('cancel', (id) => {
+      queue.cancelDownload(id);
+    });
+
+    // Remove download from list
+    socket.on('remove', (id) => {
+      queue.removeDownload(id);
+    });
+
+    // Retry a failed download
+    socket.on('retry', (id) => {
+      queue.retryDownload(id);
+    });
+
+    // Update format
+    socket.on('update-format', (data) => {
+      queue.updateFormat(data.id, data.formatId);
+    });
+
+    // Update settings
+    socket.on('update-settings', (data) => {
+      if (data.maxConcurrent) {
+        queue.setMaxConcurrent(data.maxConcurrent);
       }
-    }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('İstemci ayrıldı:', socket.id);
+    });
   });
 
-  // Pause download
-  socket.on('pause', (id) => {
-    queue.pauseDownload(id);
+  // Forward queue events to all connected clients
+  queue.on('added', (id, dl) => io.emit('download-added', { id, download: dl }));
+  queue.on('info', (id, dl) => io.emit('download-info', { id, download: dl }));
+  queue.on('started', (id, dl) => io.emit('download-started', { id, download: dl }));
+  queue.on('progress', (id, dl) => io.emit('download-progress', { id, download: dl }));
+  queue.on('complete', (id, dl) => io.emit('download-complete', { id, download: dl }));
+  queue.on('error', (id, dl) => {
+    io.emit('download-error', { id, download: dl });
+    // Auto-log errors
+    errorLogger.log({
+      downloadId: id,
+      url: dl.url,
+      platform: dl.platform,
+      title: dl.title,
+      error: dl.error,
+      phase: dl.status === 'fetching_info' ? 'info' : 'download',
+    });
   });
-
-  // Resume download
-  socket.on('resume', (id) => {
-    queue.resumeDownload(id);
-  });
-
-  // Cancel download
-  socket.on('cancel', (id) => {
-    queue.cancelDownload(id);
-  });
-
-  // Remove download from list
-  socket.on('remove', (id) => {
-    queue.removeDownload(id);
-  });
-
-  // Retry a failed download
-  socket.on('retry', (id) => {
-    queue.retryDownload(id);
-  });
-
-  // Update format
-  socket.on('update-format', (data) => {
-    queue.updateFormat(data.id, data.formatId);
-  });
-
-  // Update settings
-  socket.on('update-settings', (data) => {
-    if (data.maxConcurrent) {
-      queue.setMaxConcurrent(data.maxConcurrent);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('İstemci ayrıldı:', socket.id);
-  });
-});
-
-// Forward queue events to all connected clients
-queue.on('added', (id, dl) => io.emit('download-added', { id, download: dl }));
-queue.on('info', (id, dl) => io.emit('download-info', { id, download: dl }));
-queue.on('started', (id, dl) => io.emit('download-started', { id, download: dl }));
-queue.on('progress', (id, dl) => io.emit('download-progress', { id, download: dl }));
-queue.on('complete', (id, dl) => io.emit('download-complete', { id, download: dl }));
-queue.on('error', (id, dl) => {
-  io.emit('download-error', { id, download: dl });
-  // Auto-log errors
-  errorLogger.log({
-    downloadId: id,
-    url: dl.url,
-    platform: dl.platform,
-    title: dl.title,
-    error: dl.error,
-    phase: dl.status === 'fetching_info' ? 'info' : 'download',
-  });
-});
-queue.on('paused', (id, dl) => io.emit('download-paused', { id, download: dl }));
-queue.on('resumed', (id, dl) => io.emit('download-resumed', { id, download: dl }));
-queue.on('cancelled', (id, dl) => io.emit('download-cancelled', { id, download: dl }));
-queue.on('removed', (id) => io.emit('download-removed', { id }));
-queue.on('updated', (id, dl) => io.emit('download-updated', { id, download: dl }));
+  queue.on('paused', (id, dl) => io.emit('download-paused', { id, download: dl }));
+  queue.on('resumed', (id, dl) => io.emit('download-resumed', { id, download: dl }));
+  queue.on('cancelled', (id, dl) => io.emit('download-cancelled', { id, download: dl }));
+  queue.on('removed', (id) => io.emit('download-removed', { id }));
+  queue.on('updated', (id, dl) => io.emit('download-updated', { id, download: dl }));
+}
 
 // Setup status tracking
 let setupStatus = { phase: 'starting', message: 'Başlatılıyor...', ready: false };
@@ -296,14 +300,26 @@ async function startApp() {
       if (port > PORT + 10) {
         return reject(new Error(`Port ${PORT}-${PORT + 10} arası tümü kullanımda. Lütfen diğer uygulamaları kapatın.`));
       }
-      server.listen(port, () => {
+
+      // Create fresh server + socket.io for each port attempt
+      const tryServer = http.createServer(app);
+      const tryIo = new Server(tryServer);
+
+      tryServer.listen(port, () => {
         actualPort = port;
+        // Assign the successful server/io to module-level vars
+        server = tryServer;
+        io = tryIo;
+
         console.log('');
         console.log('╔══════════════════════════════════════════════════╗');
         console.log('║          🎬 Video Downloader Başlatılıyor       ║');
         console.log(`║  🌐  http://localhost:${actualPort}                     ║`);
         console.log('╚══════════════════════════════════════════════════╝');
         console.log('');
+
+        // Setup socket.io handlers now that io is ready
+        setupSocketIO();
 
         // Auto-open browser
         const { exec } = require('child_process');
@@ -315,11 +331,15 @@ async function startApp() {
             : `xdg-open ${url}`;
         exec(cmd);
         resolve();
-      }).on('error', (err) => {
+      });
+
+      tryServer.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
           console.log(`Port ${port} kullanımda, ${port + 1} deneniyor...`);
-          server.close();
-          tryPort(port + 1);
+          // Destroy this failed server instance and try next port with a new one
+          tryServer.close(() => {
+            tryPort(port + 1);
+          });
         } else {
           reject(err);
         }
