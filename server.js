@@ -303,7 +303,7 @@ async function startApp() {
 
       // Create fresh server + socket.io for each port attempt
       const tryServer = http.createServer(app);
-      const tryIo = new Server(tryServer);
+      const tryIo = new Server(tryServer, { serveClient: false });
 
       tryServer.listen(port, () => {
         actualPort = port;
